@@ -63,7 +63,7 @@
 
   /* 6. MODO ADMINISTRADOR (solo existe tras iniciar sesión) */
   .stat { font-size:.82rem; color:var(--muted); }
-  .admin-row { display:flex; gap:.5rem; }
+    .stat { font-size:.82rem; color:var(--muted); } .admin-row { display:flex; gap:.5rem; }
   .admin-row button { flex:1; padding:.55rem; border-radius:10px; border:1px solid var(--line); background:#fff; font-size:.85rem; font-weight:600; color:var(--brand-dark); }
   .admin-row button.del { color:var(--danger); }
   .adminbar { position:fixed; left:0; right:0; bottom:0; z-index:15; background:var(--brand-dark); color:#fff; padding:.8rem 1rem calc(.8rem + env(safe-area-inset-bottom,0)); display:flex; gap:.5rem; justify-content:center; align-items:center; flex-wrap:wrap; }
@@ -241,6 +241,12 @@
 
   let products = configured ? null : DEMO;   // null = cargando
   let isAdmin = false;
+    let stats = {}, unsubStats = null;
+  const statText = p => {
+    const st = stats[p.id], c = st && st.count ? st.count : 0;
+    const last = st && st.last && st.last.toDate ? ` · último: ${st.last.toDate().toLocaleDateString("es-CL")}` : "";
+    return `👆 ${c} ${c === 1 ? "toque" : "toques"} en Comprar${last}`;
+  };
   let stats = {}, unsubStats = null;   // contador de toques en "Comprar" (solo lo lee el administrador)
   const statText = p => {
     const st = stats[p.id], c = st && st.count ? st.count : 0;
@@ -276,6 +282,7 @@
     if (buy) {
       e.preventDefault();
       openBuy(buy.dataset.model);
+            countClick(buy.dataset.id, buy.dataset.model);
       countClick(buy.dataset.id, buy.dataset.model);
       return;
     }
@@ -295,6 +302,10 @@
     setDoc(doc(db, "stats", id), { name, count: increment(1), last: serverTimestamp() }, { merge: true }).catch(() => {});
   }
 
+    function countClick(id, name) {
+    if (!configured || isAdmin || !id) return;
+    setDoc(doc(db, "stats", id), { name, count: increment(1), last: serverTimestamp() }, { merge: true }).catch(() => {});
+  }
   /* Al tocar "Comprar por Instagram": copia el mensaje y muestra la guía */
   const buyDlg = $("buyDlg");
   const copyMsg = async (msg) => { try { await navigator.clipboard.writeText(msg); return true; } catch (_) { return false; } };
@@ -329,6 +340,12 @@
 
     onAuthStateChanged(auth, user => {
       isAdmin = !!user;
+            if (unsubStats) { unsubStats(); unsubStats = null; stats = {}; }
+      if (isAdmin) {
+        unsubStats = onSnapshot(collection(db, "stats"),
+          snap => { stats = {}; snap.forEach(d => { stats[d.id] = d.data(); }); render(); },
+          () => {});
+      }
       if (unsubStats) { unsubStats(); unsubStats = null; stats = {}; }
       if (isAdmin) {
         unsubStats = onSnapshot(collection(db, "stats"),
